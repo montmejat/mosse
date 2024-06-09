@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List
 
 import cv2
 import numpy as np
@@ -28,34 +28,39 @@ class Mosse:
     ) -> List[MosseResult]:
         """Pretrain the filter on the first frame."""
 
+        self.bbox = bbox
+        self.search_win_h = self.bbox.h
+        self.search_win_w = self.bbox.w
         results = []
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
-        self.bbox = bbox
-
         response = gauss_reponse(*frame.shape, bbox.x, bbox.y)
 
         g = response[self.bbox.top : self.bbox.bottom, self.bbox.left : self.bbox.right]
         f = frame[self.bbox.top : self.bbox.bottom, self.bbox.left : self.bbox.right]
-        G = np.fft.fft2(g)
 
+        G = np.fft.fft2(g)
         f = preprocess(f)
-        self.A_i = G * np.conj(np.fft.fft2(f))
-        self.B_i = np.fft.fft2(f) * np.conj(np.fft.fft2(f))
+        F = np.fft.fft2(f)
+
+        self.A_i = G * np.conj(F)
+        self.B_i = F * np.conj(F)
 
         results.append(MosseResult(frame, self.bbox, response, self.A_i, self.B_i, f))
 
         for _ in range(pretrain_iters):
             trans_frame, bbox = random_affine_transform(frame, self.bbox)
-            f = trans_frame[bbox.top : bbox.bottom, bbox.left : bbox.right]
             response = gauss_reponse(*trans_frame.shape, bbox.object_x, bbox.object_y)
 
             g = response[bbox.top : bbox.bottom, bbox.left : bbox.right]
+            f = trans_frame[bbox.top : bbox.bottom, bbox.left : bbox.right]
+
             G = np.fft.fft2(g)
             f = preprocess(f)
+            F = np.fft.fft2(f)
 
-            self.A_i += G * np.conj(np.fft.fft2(f))
-            self.B_i += np.fft.fft2(f) * np.conj(np.fft.fft2(f))
+            self.A_i += G * np.conj(F)
+            self.B_i += F * np.conj(F)
 
             results.append(
                 MosseResult(trans_frame, self.bbox, response, self.A_i, self.B_i, f)
@@ -64,9 +69,6 @@ class Mosse:
         self.A_i *= self.learning_rate
         self.B_i *= self.learning_rate
         self.H_i = self.A_i / self.B_i
-
-        self.search_win_h = self.H_i.shape[0]
-        self.search_win_w = self.H_i.shape[1]
 
         results.append(MosseResult(frame, self.bbox, response, self.A_i, self.B_i, f))
         return results
@@ -89,8 +91,6 @@ class Mosse:
         max_pos = np.where(g == g.max())
         self.bbox.x = max_pos[1].item() + self.bbox.left
         self.bbox.y = max_pos[0].item() + self.bbox.top
-
-        # TODO: Make sure the bounding box doesn't go out of bounds
 
         self.clipped = self.bbox.clip(
             *frame.shape, self.search_win_h, self.search_win_w

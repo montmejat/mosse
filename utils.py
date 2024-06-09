@@ -11,8 +11,8 @@ class BoundingBox:
     ):
         self.x = x
         self.y = y
-        self.w = w
-        self.h = h
+        self.w = w if w % 2 == 0 else w + 1
+        self.h = h if h % 2 == 0 else h + 1
         self.object_x = object_x if object_x is not None else x
         self.object_y = object_y if object_y is not None else y
 
@@ -82,6 +82,7 @@ class MosseResult:
 
         self.filter = A / B
         G = self.filter * np.fft.fft2(f)
+        self.filter = np.abs(normalize_range(np.fft.ifft2(self.filter)))
         self.output = np.abs(normalize_range(np.fft.ifft2(G)))
 
 
@@ -144,9 +145,9 @@ def random_affine_transform(
     scale = np.random.uniform(1 - scale, 1 + scale)
     image = cv2.resize(image, None, fx=scale, fy=scale)
 
-    # trans_x = np.random.randint(-translation, translation)
-    # trans_y = np.random.randint(-translation, translation)
-    # new_bbox.object_x += trans_x
-    # new_bbox.object_y += trans_y
+    trans_x = np.random.randint(-translation, translation)
+    trans_y = np.random.randint(-translation, translation)
+    new_bbox.object_x += trans_x
+    new_bbox.object_y += trans_y
 
     return image, new_bbox
