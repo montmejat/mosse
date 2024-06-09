@@ -1,5 +1,7 @@
-# Python implementation of MOSSE
+# MOSSE tracking
+
+Python implementation of the MOSSE tracking algorithm.
 
 ```
-python main.py /path/to/video.mp4
+python main.py assets/surfer.mp4
 ```
